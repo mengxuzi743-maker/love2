@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+  <title>ZTH & LYH · 爱心备忘录</title>
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="爱心备忘录">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="apple-touch-icon" href="icon-512.png">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ff4d6d" id="themeColorMeta">
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ---------- 动态天气背景 ---------- */
+    #weather-bg {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 0;
+      transition: background 2.5s ease;
+      overflow: hidden;
+    }
+    body.sunny #weather-bg { background: linear-gradient(160deg, #56ccf2 0%, #2f80ed 45%, #f6d365 100%); }
+    body.cloudy #weather-bg { background: linear-gradient(160deg, #a8c0ff 0%, #cfd9df 60%, #e2ebf0 100%); }
+    body.overcast #weather-bg { background: linear-gradient(160deg, #757f9a 0%, #9aa3b5 50%, #b8c6db 100%); }
+    body.rainy #weather-bg { background: linear-gradient(160deg, #4b6cb7 0%, #182848 100%); }
+    body.snowy #weather-bg { background: linear-gradient(160deg, #e6dada 0%, #c9d6ff 100%); }
+    body.default-weather #weather-bg { background: linear-gradient(160deg, #fbe9e9 0%, #ffccd5 100%); }
+
+    .weather-decor {
+      position: absolute; width: 100%; height: 100%;
+      pointer-events: none;
+    }
+    .sun {
+      position: absolute; top: 8%; right: 12%;
+      width: 72px; height: 72px;
+      background: radial-gradient(circle, #fff9c4 0%, #ffd54f 70%);
+      border-radius: 50%;
+      box-shadow: 0 0 50px #ffd54f, 0 0 100px rgba(255,213,79,0.4);
+      animation: pulse-sun 4s infinite;
+    }
+    @keyframes pulse-sun {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.15); opacity: 1; }
+    }
+    .cloud {
+      position: absolute; background: rgba(255,255,255,0.85);
+      border-radius: 50px;
+    }
+    .cloud::before, .cloud::after {
+      content: ''; position: absolute;
+      background: rgba(255,255,255,0.85); border-radius: 50%;
+    }
+    .cloud1 { width: 110px; height: 44px; top: 12%; left: 8%; }
+    .cloud1::before { width: 44px; height: 44px; top: -22px; left: 16px; }
+    .cloud1::after { width: 60px; height: 60px; top: -30px; left: 44px; }
+    .cloud2 { width: 90px; height: 36px; top: 22%; right: 20%; }
+    .cloud2::before { width: 36px; height: 36px; top: -18px; left: 12px; }
+    .cloud2::after { width: 52px; height: 52px; top: -26px; left: 36px; }
+    .fog {
+      position: absolute; width: 120%; height: 80px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+      border-radius: 50%;
+      animation: drift 12s ease-in-out infinite;
+    }
+    .fog1 { top: 30%; left: -10%; }
+    .fog2 { top: 50%; left: 20%; animation-delay: -4s; opacity: 0.6; }
+    .fog3 { top: 65%; left: -5%; animation-delay: -8s; opacity: 0.4; }
+    @keyframes drift {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(30px); }
+    }
+    .raindrop {
+      position: absolute; width: 2px; height: 18px;
+      background: rgba(255,255,255,0.65);
+      border-radius: 2px;
+      animation: fall linear infinite;
+    }
+    @keyframes fall {
+      0% { transform: translateY(-80px); opacity: 1; }
+      100% { transform: translateY(100vh); opacity: 0.3; }
+    }
+    .snowflake {
+      position: absolute; width: 6px; height: 6px;
+      background: white; border-radius: 50%;
+      opacity: 0.85;
+      animation: snowfall linear infinite;
+    }
+    @keyframes snowfall {
+      0% { transform: translateY(-20px) rotate(0deg); }
+      100% { transform: translateY(100vh) rotate(360deg); }
+    }
+    .balloon {
+      position: absolute;
+      animation: float-up 7s infinite ease-in-out;
+      opacity: 0.55;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
+    }
+    @keyframes float-up {
+      0%, 100% { transform: translateY(0) rotate(-5deg); }
+      50% { transform: translateY(-25px) rotate(5deg); }
+    }
+
+    /* ---------- 主界面 ---------- */
+    .app-container {
+      position: relative; z-index: 10;
+      max-width: 700px; margin: 0 auto;
+      padding: max(16px, env(safe-area-inset-top)) 16px 100px;
+      min-height: 100vh;
+    }
+    .app-header {
+      text-align: center;
+      margin-bottom: 12px;
+      color: #fff;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .app-header h1 {
+      font-size: 1.5rem;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .app-header p { font-size: 0.85rem; opacity: 0.9; }
+
+    .top-bar {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+      background: rgba(255,255,255,0.65);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      border: 1px solid rgba(255,255,255,0.5);
+    }
+    .weather-widget {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.95rem; color: #333; font-weight: 600;
+      white-space: nowrap;
+    }
+    .search-box {
+      display: flex; align-items: center; flex: 1; min-width: 140px;
+      background: rgba(255,255,255,0.9);
+      border-radius: 30px;
+      padding: 8px 14px;
+    }
+    .search-box input {
+      border: none; outline: none; width: 100%;
+      font-size: 0.9rem; background: transparent;
+    }
+    .icon-btn {
+      background: none; border: none;
+      font-size: 1.3rem; cursor: pointer;
+      color: #ff4d6d; padding: 4px;
+      transition: transform 0.15s;
+    }
+    .icon-btn:active { transform: scale(0.88); }
+    .icon-btn.listening { animation: mic-pulse 1s infinite; }
+    @keyframes mic-pulse {
+      0%, 100% { color: #ff4d6d; }
+      50% { color: #e6455c; transform: scale(1.1); }
+    }
+
+    .festival-alert {
+      background: rgba(255,255,255,0.75);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      display: none;
+      border-left: 4px solid #ff4d6d;
+      font-size: 0.9rem;
+      color: #444;
+      line-height: 1.5;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .festival-alert.show { display: block; animation: slide-down 0.4s ease; }
+    .festival-alert:active { background: rgba(255,255,255,0.9); }
+    .festival-alert strong { color: #c9184a; }
+    .festival-hint { font-size: 0.75rem; color: #999; margin-top: 4px; }
+
+    .memo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 14px;
+    }
+    .memo-card {
+      background: rgba(255,255,255,0.82);
+      backdrop-filter: blur(12px);
+      border-radius: 18px;
+      padding: 14px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      border: 1px solid rgba(255,255,255,0.6);
+      word-break: break-word;
+    }
+    .memo-card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px rgba(0,0,0,0.08); }
+    .memo-card h3 { color: #c9184a; margin-bottom: 6px; font-size: 1.05rem; }
+    .memo-card p {
+      color: #555; font-size: 0.88rem; margin-bottom: 8px;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .memo-card .time { font-size: 0.72rem; color: #aaa; }
+    .memo-card .card-thumb {
+      width: 100%; border-radius: 12px; margin-top: 8px;
+      max-height: 100px; object-fit: cover;
+    }
+    .empty-state {
+      grid-column: 1 / -1; text-align: center;
+      padding: 48px 16px; color: rgba(255,255,255,0.9);
+      text-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+
+    .add-btn {
+      position: fixed;
+      bottom: max(24px, env(safe-area-inset-bottom));
+      right: max(20px, env(safe-area-inset-right));
+      width: 56px; height: 56px;
+      border-radius: 50%; border: none;
+      background: #ff4d6d; color: white;
+      font-size: 28px; cursor: pointer;
+      box-shadow: 0 8px 24px rgba(255,77,109,0.45);
+      z-index: 20;
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.2s;
+    }
+    .add-btn:active { transform: scale(0.92); }
+
+    @keyframes slide-down {
+      from { transform: translateY(-12px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* ---------- 全屏详情（背景铺满整屏） ---------- */
+    .detail-overlay {
+      position: fixed; inset: 0;
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+      background: rgba(255,255,255,0.95);
+      transition: background 0.4s ease;
+    }
+    .detail-overlay.active { display: flex; }
+
+    .detail-toolbar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: max(12px, env(safe-area-inset-top)) 16px 12px;
+      background: rgba(255,255,255,0.55);
+      backdrop-filter: blur(16px);
+      flex-shrink: 0;
+      z-index: 2;
+    }
+    .detail-toolbar button {
+      background: none; border: none;
+      font-size: 1rem; cursor: pointer;
+      color: #333; padding: 6px 10px;
+      border-radius: 12px;
+    }
+    .detail-toolbar button:hover { background: rgba(0,0,0,0.05); }
+    .detail-toolbar .danger { color: #e6455c; }
+
+    .detail-scroll {
+      flex: 1; overflow-y: auto;
+      padding: 16px 16px max(24px, env(safe-area-inset-bottom));
+      display: flex; flex-direction: column;
+    }
+    .detail-body {
+      background: rgba(255,255,255,0.72);
+      backdrop-filter: blur(20px);
+      border-radius: 24px;
+      padding: 20px;
+      flex: 1;
+      border: 1px solid rgba(255,255,255,0.5);
+    }
+    .detail-body input,
+    .detail-body textarea {
+      width: 100%; border: none; outline: none;
+      background: transparent;
+      font-size: 1rem; font-family: inherit;
+      color: #333;
+    }
+    .detail-body input { font-size: 1.35rem; font-weight: 600; color: #c9184a; margin-bottom: 12px; }
+    .detail-body textarea {
+      resize: vertical; min-height: 140px;
+      line-height: 1.6; margin-bottom: 12px;
+    }
+    .detail-body input:read-only,
+    .detail-body textarea:read-only { opacity: 0.95; }
+    .detail-memo-img {
+      width: 100%; border-radius: 16px;
+      margin: 8px 0; max-height: 280px; object-fit: cover;
+    }
+    .detail-actions-row {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin: 10px 0;
+    }
+    .chip-btn {
+      background: rgba(255,255,255,0.9);
+      border: 1px solid #f0d0d8;
+      border-radius: 20px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      color: #d6336c;
+    }
+    .chip-btn:hover { background: #ffebf0; }
+
+    .bg-picker {
+      display: none; flex-wrap: wrap; gap: 10px; align-items: center;
+      margin: 12px 0; padding: 12px;
+      background: rgba(255,255,255,0.6);
+      border-radius: 16px;
+    }
+    .bg-picker.show { display: flex; }
+    .bg-picker input[type="color"] {
+      width: 44px; height: 44px; border: none;
+      border-radius: 12px; cursor: pointer;
+    }
+    .save-row {
+      text-align: right; margin-top: 16px;
+    }
+    .save-row .btn-primary {
+      background: #ff4d6d; color: white;
+      border: none; border-radius: 24px;
+      padding: 10px 28px; font-size: 1rem;
+      font-weight: 600; cursor: pointer;
+    }
+
+    /* 节日编辑弹层 */
+    .modal-mask {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.4);
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .modal-mask.show { display: flex; }
+    .modal-box {
+      background: white; border-radius: 24px;
+      padding: 24px; width: 100%; max-width: 400px;
+      max-height: 80vh; overflow-y: auto;
+    }
+    .modal-box h3 { color: #c9184a; margin-bottom: 12px; }
+    .modal-box textarea {
+      width: 100%; min-height: 80px;
+      border: 2px solid #f0d0d8; border-radius: 12px;
+      padding: 12px; font-family: inherit;
+      margin-bottom: 14px; resize: vertical;
+    }
+    .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-btns button {
+      padding: 8px 20px; border-radius: 20px;
+      border: none; cursor: pointer; font-size: 0.95rem;
+    }
+    .modal-btns .cancel { background: #eee; color: #666; }
+    .modal-btns .ok { background: #ff4d6d; color: white; }
+
+    @media (max-width: 500px) {
+      .memo-grid { grid-template-columns: 1fr; }
+      .top-bar { flex-direction: column; align-items: stretch; }
+      .weather-widget { justify-content: center; }
+    }
+  </style>
+</head>
+<body class="default-weather">
+
+  <div id="weather-bg">
+    <div class="weather-decor" id="weatherDecor"></div>
+  </div>
+
+  <div class="app-container">
+    <header class="app-header">
+      <h1>❤️ ZTH & LYH ❤️</h1>
+      <p>专属爱心备忘录</p>
+    </header>
+
+    <div class="top-bar">
+      <div class="weather-widget" id="weatherWidget">🌤️ 加载天气...</div>
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="搜索备忘录...">
+        <button class="icon-btn" id="voiceSearchBtn" title="语音搜索" type="button">🎤</button>
+      </div>
+    </div>
+
+    <div class="festival-alert" id="festivalAlert">
+      <div id="festivalText"></div>
+      <div class="festival-hint">点击可编辑节日简介</div>
+    </div>
+
+    <div class="memo-grid" id="memoGrid"></div>
+  </div>
+
+  <button class="add-btn" id="addBtn" type="button" aria-label="新建">＋</button>
+
+  <!-- 全屏详情 -->
+  <div class="detail-overlay" id="detailOverlay">
+    <div class="detail-toolbar">
+      <button type="button" id="detailBackBtn">← 返回</button>
+      <div>
+        <button type="button" class="icon-btn" id="detailVoiceBtn" title="语音输入内容" style="display:none;">🎤</button>
+        <button type="button" id="detailBgBtn" style="display:none;">🎨 背景</button>
+        <button type="button" id="detailEditBtn">✏️ 编辑</button>
+        <button type="button" class="danger" id="detailDeleteBtn">🗑️</button>
+      </div>
+    </div>
+    <div class="detail-scroll">
+      <div class="detail-body">
+        <input type="text" id="detailTitle" placeholder="标题" readonly>
+        <textarea id="detailText" placeholder="写下想对 TA 说的话..." readonly></textarea>
+        <img id="detailMemoImg" class="detail-memo-img" alt="" style="display:none;">
+        <div class="detail-actions-row" id="detailMediaRow" style="display:none;">
+          <label class="chip-btn">
+            📷 添加图片
+            <input type="file" id="memoImageUpload" accept="image/*" style="display:none;">
+          </label>
+          <button type="button" class="chip-btn" id="removeMemoImgBtn">移除图片</button>
+        </div>
+        <div class="bg-picker" id="bgPickerPanel">
+          <input type="color" id="bgColorPicker" value="#fbe9e9" title="纯色背景">
+          <label class="chip-btn">
+            🖼️ 背景图
+            <input type="file" id="bgImageUpload" accept="image/*" style="display:none;">
+          </label>
+          <button type="button" class="chip-btn" id="bgResetBtn">重置背景</button>
+        </div>
+        <div class="save-row" id="saveRow" style="display:none;">
+          <button type="button" class="btn-primary" id="detailSaveBtn">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 节日简介编辑 -->
+  <div class="modal-mask" id="festivalModal">
+    <div class="modal-box">
+      <h3 id="festivalModalTitle">编辑节日简介</h3>
+      <textarea id="festivalDescInput" placeholder="写一段节日祝福或简介..."></textarea>
+      <div class="modal-btns">
+        <button type="button" class="cancel" id="festivalModalCancel">取消</button>
+        <button type="button" class="ok" id="festivalModalSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+
+  <script>
+    (function() {
+      const STORAGE_KEY = 'love_memo_app_v2';
+      const FESTIVAL_KEY = 'love_memo_festivals';
+      const OLD_STORAGE_KEY = 'love_memo_app';
+
+      let memos = [];
+      let currentDetailId = null;
+      let isEditing = false;
+      let currentFestivalKey = null;
+      let pendingBgImage = null;
+      let pendingBgColor = null;
+
+      const $ = id => document.getElementById(id);
+      const weatherDecor = $('weatherDecor');
+      const weatherWidget = $('weatherWidget');
+      const searchInput = $('searchInput');
+      const voiceSearchBtn = $('voiceSearchBtn');
+      const festivalAlert = $('festivalAlert');
+      const festivalText = $('festivalText');
+      const memoGrid = $('memoGrid');
+      const detailOverlay = $('detailOverlay');
+      const detailTitle = $('detailTitle');
+      const detailText = $('detailText');
+      const detailMemoImg = $('detailMemoImg');
+      const bgPickerPanel = $('bgPickerPanel');
+      const bgColorPicker = $('bgColorPicker');
+      const bgImageUpload = $('bgImageUpload');
+      const memoImageUpload = $('memoImageUpload');
+      const themeColorMeta = $('themeColorMeta');
+
+      const defaultFestivals = [
+        { date: '01-01', name: '元旦', desc: '新的一年，和爱的人一起迎接希望。' },
+        { date: '02-14', name: '情人节', desc: '玫瑰与巧克力，都是我爱你的形状。' },
+        { date: '05-20', name: '520', desc: '谐音「我爱你」，表白的最佳时机。' },
+        { date: '06-01', name: '儿童节', desc: '在我眼里，你永远是那个可爱的小孩。' },
+        { date: '08-04', name: '七夕', desc: '牛郎织女鹊桥相会，我们的爱也在星空下闪耀。' },
+        { date: '09-10', name: '教师节', desc: '人生导师，感谢一路陪伴。' },
+        { date: '10-01', name: '国庆节', desc: '祖国繁荣，小家安康。' },
+        { date: '12-25', name: '圣诞节', desc: '圣诞老人会把我打包送给你吗？' }
+      ];
+
+      function loadMemos() {
+        let stored = localStorage.getItem(STORAGE_KEY);
+        if (!stored) {
+          const old = localStorage.getItem(OLD_STORAGE_KEY);
+          if (old) {
+            try {
+              memos = JSON.parse(old).map(m => ({
+                id: m.id,
+                title: m.title || '',
+                content: m.content || '',
+                image: m.image || null,
+                bgColor: m.bgColor || null,
+                bgImage: m.bgImage || null,
+                timestamp: m.timestamp || Date.now()
+              }));
+              saveMemos();
+              return;
+            } catch (e) {}
+          }
+        }
+        memos = stored ? JSON.parse(stored) : [];
+      }
+
+      function saveMemos() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(memos));
+      }
+
+      function loadFestivals() {
+        const stored = localStorage.getItem(FESTIVAL_KEY);
+        if (stored) {
+          try { return JSON.parse(stored); } catch (e) {}
+        }
+        return defaultFestivals.map(f => ({ ...f }));
+      }
+
+      function saveFestivals(list) {
+        localStorage.setItem(FESTIVAL_KEY, JSON.stringify(list));
+      }
+
+      let festivals = loadFestivals();
+
+      function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      }
+
+      function formatTime(ts) {
+        const d = new Date(ts);
+        const p = n => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text == null ? '' : text;
+        return div.innerHTML;
+      }
+
+      function compressImage(file, maxW = 800, quality = 0.72) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = e => {
+            const img = new Image();
+            img.onload = () => {
+              let w = img.width, h = img.height;
+              if (w > maxW) { h = (maxW / w) * h; w = maxW; }
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+              resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+
+      /* ---------- 天气 ---------- */
+      const WEATHER_THEMES = {
+        sunny: '#2f80ed',
+        cloudy: '#a8c0ff',
+        overcast: '#757f9a',
+        rainy: '#182848',
+        snowy: '#c9d6ff',
+        default: '#ff4d6d'
+      };
+
+      function getWeatherType(code) {
+        if (code === 0) return 'sunny';
+        if (code >= 1 && code <= 3) return 'cloudy';
+        if (code === 45 || code === 48) return 'overcast';
+        if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code === 95) return 'rainy';
+        if (code >= 71 && code <= 77) return 'snowy';
+        return 'default';
+      }
+
+      const WEATHER_ICONS = {
+        0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️',
+        45: '🌫️', 48: '🌫️',
+        51: '🌦️', 53: '🌧️', 55: '🌧️', 61: '🌧️', 63: '🌧️', 65: '🌧️',
+        71: '❄️', 73: '❄️', 75: '❄️',
+        80: '🌦️', 81: '🌧️', 82: '🌧️', 95: '⛈️'
+      };
+
+      function addBalloons(container, count = 7) {
+        const hearts = ['❤️', '💖', '💕', '💗', '💝', '🎈', '💘'];
+        for (let i = 0; i < count; i++) {
+          const b = document.createElement('span');
+          b.className = 'balloon';
+          b.textContent = hearts[i % hearts.length];
+          b.style.left = (5 + Math.random() * 85) + '%';
+          b.style.top = (20 + Math.random() * 60) + '%';
+          b.style.fontSize = (26 + Math.random() * 22) + 'px';
+          b.style.animationDelay = (Math.random() * 4) + 's';
+          b.style.animationDuration = (6 + Math.random() * 4) + 's';
+          container.appendChild(b);
+        }
+      }
+
+      function renderWeatherDecor(code) {
+        weatherDecor.innerHTML = '';
+        const type = getWeatherType(code);
+
+        if (type === 'sunny') {
+          weatherDecor.innerHTML = '<div class="sun"></div>';
+          addBalloons(weatherDecor, 8);
+        } else if (type === 'cloudy') {
+          weatherDecor.innerHTML = '<div class="cloud cloud1"></div><div class="cloud cloud2"></div>';
+          addBalloons(weatherDecor, 6);
+        } else if (type === 'overcast') {
+          weatherDecor.innerHTML = '<div class="fog fog1"></div><div class="fog fog2"></div><div class="fog fog3"></div>';
+          addBalloons(weatherDecor, 5);
+        } else if (type === 'rainy') {
+          for (let i = 0; i < 35; i++) {
+            const drop = document.createElement('div');
+            drop.className = 'raindrop';
+            drop.style.left = Math.random() * 100 + '%';
+            drop.style.animationDuration = (0.8 + Math.random() * 1.5) + 's';
+            drop.style.animationDelay = Math.random() * 3 + 's';
+            weatherDecor.appendChild(drop);
+          }
+          addBalloons(weatherDecor, 4);
+        } else if (type === 'snowy') {
+          for (let i = 0; i < 45; i++) {
+            const flake = document.createElement('div');
+            flake.className = 'snowflake';
+            flake.style.left = Math.random() * 100 + '%';
+            flake.style.width = flake.style.height = (4 + Math.random() * 6) + 'px';
+            flake.style.animationDuration = (4 + Math.random() * 6) + 's';
+            flake.style.animationDelay = Math.random() * 5 + 's';
+            weatherDecor.appendChild(flake);
+          }
+          addBalloons(weatherDecor, 5);
+        } else {
+          addBalloons(weatherDecor, 6);
+        }
+      }
+
+      function updateWeatherBackground(code) {
+        const type = getWeatherType(code);
+        document.body.className = type === 'default' ? 'default-weather' : type;
+        themeColorMeta.content = WEATHER_THEMES[type] || WEATHER_THEMES.default;
+        renderWeatherDecor(code);
+      }
+
+      function resolveWeatherCode(current) {
+        if (current.weather_code != null) return current.weather_code;
+        if (current.rain > 0 || current.precipitation > 0.5) return 61;
+        if (current.precipitation > 0) return 51;
+        return 0;
+      }
+
+      function updateWeatherUI(temp, code, humidity) {
+        const icon = WEATHER_ICONS[code] || '🌈';
+        const hum = humidity != null ? ` · ${Math.round(humidity)}%` : '';
+        weatherWidget.textContent = `${icon} ${Math.round(temp)}°C${hum}`;
+      }
+
+      async function fetchWeather() {
+        if (!navigator.geolocation) {
+          weatherWidget.textContent = '📍 无法定位';
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(async pos => {
+          const { latitude, longitude } = pos.coords;
+          try {
+            const params = new URLSearchParams({
+              latitude: latitude.toFixed(4),
+              longitude: longitude.toFixed(4),
+              current: 'weather_code,temperature_2m,precipitation,rain,relative_humidity_2m'
+            });
+            const url = `https://api.open-meteo.com/v1/forecast?${params}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('API error');
+            const data = await res.json();
+            const c = data.current;
+            if (!c) throw new Error('no current data');
+            const code = resolveWeatherCode(c);
+            updateWeatherUI(c.temperature_2m, code, c.relative_humidity_2m);
+            updateWeatherBackground(code);
+          } catch (e) {
+            weatherWidget.textContent = '🌤️ 天气加载失败';
+          }
+        }, () => {
+          weatherWidget.textContent = '🌍 请允许位置权限';
+        }, { timeout: 12000 });
+      }
+
+      /* ---------- 节日 ---------- */
+      function getTodayMMDD() {
+        const t = new Date();
+        return String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+      }
+
+      function getFestivalStatus() {
+        const todayStr = getTodayMMDD();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        for (const f of festivals) {
+          if (f.date === todayStr) {
+            return { type: 'today', festival: f, days: 0 };
+          }
+        }
+        for (const f of festivals) {
+          const [m, d] = f.date.split('-').map(Number);
+          const fDate = new Date(today.getFullYear(), m - 1, d);
+          const diff = Math.ceil((fDate - today) / 86400000);
+          if (diff > 0 && diff <= 7) {
+            return { type: 'upcoming', festival: f, days: diff };
+          }
+        }
+        return null;
+      }
+
+      function renderFestivalAlert() {
+        const status = getFestivalStatus();
+        if (!status) {
+          festivalAlert.classList.remove('show');
+          currentFestivalKey = null;
+          return;
+        }
+        const f = status.festival;
+        currentFestivalKey = f.date;
+        festivalAlert.classList.add('show');
+        if (status.type === 'today') {
+          festivalText.innerHTML = `🎉 今天是 <strong>${escapeHtml(f.name)}</strong>！${escapeHtml(f.desc)}`;
+        } else {
+          festivalText.innerHTML = `⏳ 距离 <strong>${escapeHtml(f.name)}</strong> 还有 ${status.days} 天 · ${escapeHtml(f.desc)}`;
+        }
+      }
+
+      function openFestivalEditor() {
+        if (!currentFestivalKey) return;
+        const f = festivals.find(x => x.date === currentFestivalKey);
+        if (!f) return;
+        $('festivalModalTitle').textContent = `编辑 · ${f.name}`;
+        $('festivalDescInput').value = f.desc;
+        $('festivalModal').classList.add('show');
+      }
+
+      /* ---------- 列表 ---------- */
+      function renderMemos(filterText = '') {
+        const q = filterText.trim().toLowerCase();
+        const filtered = q
+          ? memos.filter(m =>
+              (m.title && m.title.toLowerCase().includes(q)) ||
+              (m.content && m.content.toLowerCase().includes(q))
+            )
+          : memos;
+
+        if (filtered.length === 0) {
+          memoGrid.innerHTML = `<div class="empty-state">${q ? '🔍 没有匹配的备忘录' : '✨ 点击右下角 ＋ 创建第一条备忘录'}</div>`;
+          return;
+        }
+
+        memoGrid.innerHTML = filtered.map(m => `
+          <div class="memo-card" data-id="${m.id}">
+            ${m.title ? `<h3>${escapeHtml(m.title)}</h3>` : '<h3 style="opacity:0.5">无标题</h3>'}
+            <p>${escapeHtml(m.content) || '（空白）'}</p>
+            ${m.image ? `<img class="card-thumb" src="${m.image}" alt="">` : ''}
+            <div class="time">🕒 ${formatTime(m.timestamp)}</div>
+          </div>
+        `).join('');
+      }
+
+      /* ---------- 详情全屏背景 ---------- */
+      function applyDetailBackground(memo) {
+        pendingBgImage = memo.bgImage || null;
+        pendingBgColor = memo.bgColor || null;
+        if (memo.bgImage) {
+          detailOverlay.style.background = `url(${memo.bgImage}) center/cover no-repeat`;
+          detailOverlay.style.backgroundColor = '';
+        } else if (memo.bgColor) {
+          detailOverlay.style.background = memo.bgColor;
+          detailOverlay.style.backgroundImage = 'none';
+          bgColorPicker.value = memo.bgColor.startsWith('#') ? memo.bgColor : '#fbe9e9';
+        } else {
+          detailOverlay.style.background = 'linear-gradient(160deg, rgba(251,233,233,0.95), rgba(255,204,213,0.95))';
+          detailOverlay.style.backgroundImage = 'none';
+        }
+      }
+
+      function openDetail(id) {
+        const memo = memos.find(m => m.id === id);
+        if (!memo) return;
+        currentDetailId = id;
+        detailTitle.value = memo.title || '';
+        detailText.value = memo.content || '';
+        if (memo.image) {
+          detailMemoImg.src = memo.image;
+          detailMemoImg.style.display = 'block';
+        } else {
+          detailMemoImg.style.display = 'none';
+          detailMemoImg.removeAttribute('src');
+        }
+        applyDetailBackground(memo);
+        setEditMode(false);
+        detailOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeDetail() {
+        detailOverlay.classList.remove('active');
+        currentDetailId = null;
+        isEditing = false;
+        document.body.style.overflow = '';
+      }
+
+      function setEditMode(editing) {
+        isEditing = editing;
+        detailTitle.readOnly = !editing;
+        detailText.readOnly = !editing;
+        $('detailEditBtn').textContent = editing ? '👁️ 预览' : '✏️ 编辑';
+        $('detailBgBtn').style.display = editing ? 'inline-block' : 'none';
+        $('detailVoiceBtn').style.display = editing ? 'inline-block' : 'none';
+        $('detailMediaRow').style.display = editing ? 'flex' : 'none';
+        bgPickerPanel.classList.toggle('show', editing && bgPickerPanel.classList.contains('force-show'));
+        $('saveRow').style.display = editing ? 'block' : 'none';
+        if (!editing) bgPickerPanel.classList.remove('force-show');
+      }
+
+      function saveDetail() {
+        const memo = memos.find(m => m.id === currentDetailId);
+        if (!memo) return;
+        const title = detailTitle.value.trim();
+        const content = detailText.value.trim();
+        if (!title && !content && !memo.image) {
+          alert('标题、内容和图片不能都为空哦~');
+          return;
+        }
+        memo.title = title;
+        memo.content = content;
+        if (detailMemoImg.style.display !== 'none' && detailMemoImg.src) {
+          memo.image = detailMemoImg.src;
+        } else {
+          memo.image = null;
+        }
+        memo.bgImage = pendingBgImage;
+        memo.bgColor = pendingBgColor;
+        memo.timestamp = Date.now();
+        saveMemos();
+        renderMemos(searchInput.value);
+        setEditMode(false);
+      }
+
+      function deleteCurrentMemo() {
+        if (!currentDetailId) return;
+        if (!confirm('确定删除这条备忘录吗？')) return;
+        memos = memos.filter(m => m.id !== currentDetailId);
+        saveMemos();
+        renderMemos(searchInput.value);
+        closeDetail();
+      }
+
+      function addNewMemo() {
+        const newMemo = {
+          id: generateId(),
+          title: '',
+          content: '',
+          image: null,
+          bgColor: null,
+          bgImage: null,
+          timestamp: Date.now()
+        };
+        memos.unshift(newMemo);
+        saveMemos();
+        renderMemos(searchInput.value);
+        openDetail(newMemo.id);
+        setEditMode(true);
+        bgPickerPanel.classList.add('force-show');
+        bgPickerPanel.classList.add('show');
+      }
+
+      /* ---------- 语音 ---------- */
+      function startSpeechRecognition(onResult, btn) {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+          alert('当前浏览器不支持语音识别，请使用 Chrome / Edge / Safari');
+          return;
+        }
+        const recognition = new SR();
+        recognition.lang = 'zh-CN';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        if (btn) btn.classList.add('listening');
+        recognition.onresult = e => {
+          onResult(e.results[0][0].transcript);
+        };
+        recognition.onerror = () => {
+          if (btn) btn.classList.remove('listening');
+        };
+        recognition.onend = () => {
+          if (btn) btn.classList.remove('listening');
+        };
+        recognition.start();
+      }
+
+      /* ---------- 事件 ---------- */
+      function bindEvents() {
+        searchInput.addEventListener('input', e => renderMemos(e.target.value));
+
+        voiceSearchBtn.addEventListener('click', () => {
+          startSpeechRecognition(text => {
+            searchInput.value = text;
+            renderMemos(text);
+          }, voiceSearchBtn);
+        });
+
+        $('detailVoiceBtn').addEventListener('click', () => {
+          startSpeechRecognition(text => {
+            detailText.value += (detailText.value ? '\n' : '') + text;
+          }, $('detailVoiceBtn'));
+        });
+
+        addBtn.addEventListener('click', addNewMemo);
+
+        memoGrid.addEventListener('click', e => {
+          const card = e.target.closest('.memo-card');
+          if (card) openDetail(card.dataset.id);
+        });
+
+        $('detailBackBtn').addEventListener('click', closeDetail);
+        $('detailEditBtn').addEventListener('click', () => {
+          if (!isEditing) setEditMode(true);
+          else setEditMode(false);
+        });
+        $('detailBgBtn').addEventListener('click', () => {
+          bgPickerPanel.classList.add('force-show', 'show');
+        });
+        $('detailDeleteBtn').addEventListener('click', deleteCurrentMemo);
+        $('detailSaveBtn').addEventListener('click', saveDetail);
+
+        bgColorPicker.addEventListener('input', e => {
+          pendingBgColor = e.target.value;
+          pendingBgImage = null;
+          detailOverlay.style.background = e.target.value;
+          detailOverlay.style.backgroundImage = 'none';
+        });
+
+        bgImageUpload.addEventListener('change', async e => {
+          const file = e.target.files[0];
+          if (!file) return;
+          try {
+            const data = await compressImage(file, 1200, 0.75);
+            pendingBgImage = data;
+            pendingBgColor = null;
+            detailOverlay.style.background = `url(${data}) center/cover no-repeat`;
+            detailOverlay.style.backgroundColor = '';
+          } catch (err) {
+            alert('背景图片加载失败');
+          }
+          e.target.value = '';
+        });
+
+        $('bgResetBtn').addEventListener('click', () => {
+          pendingBgImage = null;
+          pendingBgColor = null;
+          detailOverlay.style.background = 'linear-gradient(160deg, rgba(251,233,233,0.95), rgba(255,204,213,0.95))';
+          detailOverlay.style.backgroundImage = 'none';
+        });
+
+        memoImageUpload.addEventListener('change', async e => {
+          const file = e.target.files[0];
+          if (!file) return;
+          try {
+            const data = await compressImage(file);
+            detailMemoImg.src = data;
+            detailMemoImg.style.display = 'block';
+          } catch (err) {
+            alert('图片加载失败');
+          }
+          e.target.value = '';
+        });
+
+        $('removeMemoImgBtn').addEventListener('click', () => {
+          detailMemoImg.style.display = 'none';
+          detailMemoImg.removeAttribute('src');
+          const memo = memos.find(m => m.id === currentDetailId);
+          if (memo) memo.image = null;
+        });
+
+        festivalAlert.addEventListener('click', openFestivalEditor);
+        $('festivalModalCancel').addEventListener('click', () => {
+          $('festivalModal').classList.remove('show');
+        });
+        $('festivalModalSave').addEventListener('click', () => {
+          const f = festivals.find(x => x.date === currentFestivalKey);
+          if (f) {
+            f.desc = $('festivalDescInput').value.trim() || f.desc;
+            saveFestivals(festivals);
+            renderFestivalAlert();
+          }
+          $('festivalModal').classList.remove('show');
+        });
+        $('festivalModal').addEventListener('click', e => {
+          if (e.target === $('festivalModal')) $('festivalModal').classList.remove('show');
+        });
+      }
+
+      function init() {
+        loadMemos();
+        renderMemos();
+        renderFestivalAlert();
+        bindEvents();
+        fetchWeather();
+        setInterval(renderFestivalAlert, 60 * 60 * 1000);
+        setInterval(fetchWeather, 30 * 60 * 1000);
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>
