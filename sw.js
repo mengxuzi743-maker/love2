@@ -1,9 +1,9 @@
-const CACHE_NAME = 'love-memo-v2';
+const CACHE_NAME = 'love-memo-v8'; // 升级版本号，强制清除旧缓存
 const urlsToCache = [
-  './memo.html',
-  './manifest.json',
-  './icon-192.png',
-  './icon-512.png'
+  '/love2/',
+  '/love2/index.html',
+  '/love2/manifest.json',
+  '/love2/icon-512.png'
 ];
 
 self.addEventListener('install', event => {
