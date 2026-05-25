@@ -143,6 +143,7 @@
       display: flex; align-items: center; gap: 6px;
       font-size: 0.95rem; color: #333; font-weight: 600;
       white-space: nowrap;
+      cursor: pointer;
     }
     .search-box {
       display: flex; align-items: center; flex: 1; min-width: 140px;
@@ -452,7 +453,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
+        navigator.serviceWorker.register('/love2/sw.js').catch(() => {});
       });
     }
   </script>
@@ -679,6 +680,7 @@
         weatherWidget.textContent = `${icon} ${Math.round(temp)}°C${hum}`;
       }
 
+      // 原 fetchWeather (用于定时刷新，后台自动获取)
       async function fetchWeather() {
         if (!navigator.geolocation) {
           weatherWidget.textContent = '📍 无法定位';
@@ -707,6 +709,64 @@
         }, () => {
           weatherWidget.textContent = '🌍 请允许位置权限';
         }, { timeout: 12000 });
+      }
+
+      // 点击手动请求天气
+      function requestWeatherOnClick() {
+        weatherWidget.onclick = null;
+        weatherWidget.style.cursor = 'default';
+        weatherWidget.textContent = '⏳ 定位中...';
+        if (!navigator.geolocation) {
+          weatherWidget.textContent = '📍 不支持定位';
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const { latitude, longitude } = pos.coords;
+            try {
+              const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`);
+              const data = await res.json();
+              const w = data.current_weather;
+              updateWeatherUI(w.temperature, resolveWeatherCode(w), w.relative_humidity_2m);
+              updateWeatherBackground(resolveWeatherCode(w));
+            } catch (e) {
+              weatherWidget.textContent = '🌤️ 天气加载失败';
+            }
+          },
+          () => {
+            weatherWidget.textContent = '🌍 请允许位置权限';
+            weatherWidget.onclick = requestWeatherOnClick;
+            weatherWidget.style.cursor = 'pointer';
+          },
+          { timeout: 12000 }
+        );
+      }
+
+      // 初始化天气（尝试自动获取，若失败则提示点击）
+      function initWeather() {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              const { latitude, longitude } = pos.coords;
+              try {
+                const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`);
+                const data = await res.json();
+                const w = data.current_weather;
+                updateWeatherUI(w.temperature, resolveWeatherCode(w), w.relative_humidity_2m);
+                updateWeatherBackground(resolveWeatherCode(w));
+              } catch (e) {}
+            },
+            () => {
+              // 自动失败，显示点击获取天气
+              weatherWidget.textContent = '🌤️ 点击获取天气';
+              weatherWidget.style.cursor = 'pointer';
+              weatherWidget.onclick = requestWeatherOnClick;
+            },
+            { timeout: 8000 }
+          );
+        } else {
+          weatherWidget.textContent = '📍 不支持定位';
+        }
       }
 
       /* ---------- 节日 ---------- */
@@ -1026,9 +1086,9 @@
         renderMemos();
         renderFestivalAlert();
         bindEvents();
-        fetchWeather();
+        initWeather();                          // ← 改为 initWeather
         setInterval(renderFestivalAlert, 60 * 60 * 1000);
-        setInterval(fetchWeather, 30 * 60 * 1000);
+        setInterval(fetchWeather, 30 * 60 * 1000);  // 定时刷新使用原自动获取
       }
 
       init();
