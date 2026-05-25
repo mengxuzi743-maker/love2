@@ -667,106 +667,193 @@
         renderWeatherDecor(code);
       }
 
+      const WEATHER_LOC_KEY = 'love_memo_weather_loc';
+      // 无定位权限时的默认城市（可改成你们所在城市）
+      const DEFAULT_WEATHER_LOC = { lat: 39.9042, lon: 116.4074, label: '北京' };
+
+      function loadWeatherLocation() {
+        try {
+          const s = localStorage.getItem(WEATHER_LOC_KEY);
+          return s ? JSON.parse(s) : null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function saveWeatherLocation(lat, lon, label) {
+        localStorage.setItem(WEATHER_LOC_KEY, JSON.stringify({ lat, lon, label }));
+      }
+
       function resolveWeatherCode(current) {
         if (current.weather_code != null) return current.weather_code;
+        if (current.weathercode != null) return current.weathercode;
         if (current.rain > 0 || current.precipitation > 0.5) return 61;
         if (current.precipitation > 0) return 51;
         return 0;
       }
 
-      function updateWeatherUI(temp, code, humidity) {
+      function updateWeatherUI(temp, code, humidity, label) {
         const icon = WEATHER_ICONS[code] || '🌈';
         const hum = humidity != null ? ` · ${Math.round(humidity)}%` : '';
-        weatherWidget.textContent = `${icon} ${Math.round(temp)}°C${hum}`;
+        const place = label ? ` · ${label}` : '';
+        weatherWidget.textContent = `${icon} ${Math.round(temp)}°C${hum}${place}`;
+        weatherWidget.title = '点击可重新获取或设置城市';
       }
 
-      // 原 fetchWeather (用于定时刷新，后台自动获取)
-      async function fetchWeather() {
+      async function fetchWeatherByCoords(lat, lon, label) {
+        const params = new URLSearchParams({
+          latitude: lat.toFixed(4),
+          longitude: lon.toFixed(4),
+          current: 'weather_code,temperature_2m,precipitation,rain,relative_humidity_2m'
+        });
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+        if (!res.ok) throw new Error('API error');
+        const data = await res.json();
+        const c = data.current;
+        if (!c) throw new Error('no current data');
+        const code = resolveWeatherCode(c);
+        updateWeatherUI(c.temperature_2m, code, c.relative_humidity_2m, label);
+        updateWeatherBackground(code);
+      }
+
+      function tryGeolocation(onSuccess, onFail) {
         if (!navigator.geolocation) {
-          weatherWidget.textContent = '📍 无法定位';
+          onFail();
           return;
         }
-        navigator.geolocation.getCurrentPosition(async pos => {
-          const { latitude, longitude } = pos.coords;
-          try {
-            const params = new URLSearchParams({
-              latitude: latitude.toFixed(4),
-              longitude: longitude.toFixed(4),
-              current: 'weather_code,temperature_2m,precipitation,rain,relative_humidity_2m'
-            });
-            const url = `https://api.open-meteo.com/v1/forecast?${params}`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('API error');
-            const data = await res.json();
-            const c = data.current;
-            if (!c) throw new Error('no current data');
-            const code = resolveWeatherCode(c);
-            updateWeatherUI(c.temperature_2m, code, c.relative_humidity_2m);
-            updateWeatherBackground(code);
-          } catch (e) {
-            weatherWidget.textContent = '🌤️ 天气加载失败';
-          }
-        }, () => {
-          weatherWidget.textContent = '🌍 请允许位置权限';
-        }, { timeout: 12000 });
+        navigator.geolocation.getCurrentPosition(
+          pos => onSuccess(pos.coords.latitude, pos.coords.longitude, '当前位置'),
+          onFail,
+          { timeout: 12000, maximumAge: 10 * 60 * 1000 }
+        );
       }
 
-      // 点击手动请求天气
-      function requestWeatherOnClick() {
-        weatherWidget.onclick = null;
-        weatherWidget.style.cursor = 'default';
+      async function promptManualCity() {
+        const input = prompt('输入城市名（如：北京、上海、广州）', loadWeatherLocation()?.label || DEFAULT_WEATHER_LOC.label);
+        if (!input || !input.trim()) return false;
+        const name = input.trim();
+        weatherWidget.textContent = '⏳ 查找城市中...';
+        try {
+          const params = new URLSearchParams({ name, count: '1', language: 'zh' });
+          const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${params}`);
+          if (!res.ok) throw new Error('geocode error');
+          const data = await res.json();
+          const city = data.results && data.results[0];
+          if (!city) {
+            alert('未找到该城市，请换个名字试试');
+            return false;
+          }
+          const label = city.name + (city.admin1 ? ` · ${city.admin1}` : '');
+          saveWeatherLocation(city.latitude, city.longitude, label);
+          await fetchWeatherByCoords(city.latitude, city.longitude, label);
+          return true;
+        } catch (e) {
+          alert('城市查找失败，请检查网络后重试');
+          return false;
+        }
+      }
+
+      async function loadWeather(options = {}) {
+        const { preferGps = false } = options;
+        weatherWidget.textContent = '⏳ 加载天气...';
+
+        const saved = loadWeatherLocation();
+        const trySaved = async () => {
+          if (!saved) return false;
+          await fetchWeatherByCoords(saved.lat, saved.lon, saved.label);
+          return true;
+        };
+
+        const tryGps = () => new Promise(resolve => {
+          tryGeolocation(
+            async (lat, lon, label) => {
+              try {
+                await fetchWeatherByCoords(lat, lon, label);
+                resolve(true);
+              } catch (e) {
+                resolve(false);
+              }
+            },
+            () => resolve(false)
+          );
+        });
+
+        try {
+          if (preferGps) {
+            if (await tryGps()) return;
+            if (await trySaved()) return;
+          } else {
+            if (saved && await trySaved()) return;
+            if (await tryGps()) return;
+          }
+          await fetchWeatherByCoords(
+            DEFAULT_WEATHER_LOC.lat,
+            DEFAULT_WEATHER_LOC.lon,
+            DEFAULT_WEATHER_LOC.label
+          );
+        } catch (e) {
+          weatherWidget.textContent = '🌤️ 点击设置城市';
+          weatherWidget.style.cursor = 'pointer';
+        }
+      }
+
+      // 点击：优先重新定位，取消则手动选城市
+      async function onWeatherWidgetClick() {
         weatherWidget.textContent = '⏳ 定位中...';
+        const gotGps = await new Promise(resolve => {
+          tryGeolocation(
+            async (lat, lon, label) => {
+              try {
+                await fetchWeatherByCoords(lat, lon, label);
+                resolve(true);
+              } catch (e) {
+                resolve(false);
+              }
+            },
+            () => resolve(false)
+          );
+        });
+        if (gotGps) return;
+        if (await promptManualCity()) return;
+        weatherWidget.textContent = '🌤️ 点击获取天气';
+        weatherWidget.onclick = onWeatherWidgetClick;
+      }
+
+      function requestWeatherOnClick() {
+        onWeatherWidgetClick();
+      }
+
+      // 初始化：自动定位；失败则提示点击
+      function initWeather() {
+        weatherWidget.style.cursor = 'pointer';
+        weatherWidget.textContent = '⏳ 加载天气...';
         if (!navigator.geolocation) {
-          weatherWidget.textContent = '📍 不支持定位';
+          loadWeather();
+          weatherWidget.onclick = onWeatherWidgetClick;
           return;
         }
         navigator.geolocation.getCurrentPosition(
           async (pos) => {
-            const { latitude, longitude } = pos.coords;
             try {
-              const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`);
-              const data = await res.json();
-              const w = data.current_weather;
-              updateWeatherUI(w.temperature, resolveWeatherCode(w), w.relative_humidity_2m);
-              updateWeatherBackground(resolveWeatherCode(w));
+              await fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude, '当前位置');
+              weatherWidget.onclick = onWeatherWidgetClick;
+              weatherWidget.title = '点击重新定位或设置城市';
             } catch (e) {
-              weatherWidget.textContent = '🌤️ 天气加载失败';
+              weatherWidget.textContent = '🌤️ 点击获取天气';
+              weatherWidget.onclick = onWeatherWidgetClick;
             }
           },
           () => {
-            weatherWidget.textContent = '🌍 请允许位置权限';
-            weatherWidget.onclick = requestWeatherOnClick;
-            weatherWidget.style.cursor = 'pointer';
+            weatherWidget.textContent = '🌤️ 点击获取天气';
+            weatherWidget.onclick = onWeatherWidgetClick;
           },
-          { timeout: 12000 }
+          { timeout: 8000 }
         );
       }
 
-      // 初始化天气（尝试自动获取，若失败则提示点击）
-      function initWeather() {
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            async (pos) => {
-              const { latitude, longitude } = pos.coords;
-              try {
-                const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`);
-                const data = await res.json();
-                const w = data.current_weather;
-                updateWeatherUI(w.temperature, resolveWeatherCode(w), w.relative_humidity_2m);
-                updateWeatherBackground(resolveWeatherCode(w));
-              } catch (e) {}
-            },
-            () => {
-              // 自动失败，显示点击获取天气
-              weatherWidget.textContent = '🌤️ 点击获取天气';
-              weatherWidget.style.cursor = 'pointer';
-              weatherWidget.onclick = requestWeatherOnClick;
-            },
-            { timeout: 8000 }
-          );
-        } else {
-          weatherWidget.textContent = '📍 不支持定位';
-        }
+      // 定时刷新（每 30 分钟，优先 GPS）
+      function fetchWeather() {
+        loadWeather({ preferGps: true });
       }
 
       /* ---------- 节日 ---------- */
@@ -1086,9 +1173,9 @@
         renderMemos();
         renderFestivalAlert();
         bindEvents();
-        initWeather();                          // ← 改为 initWeather
+        initWeather();
         setInterval(renderFestivalAlert, 60 * 60 * 1000);
-        setInterval(fetchWeather, 30 * 60 * 1000);  // 定时刷新使用原自动获取
+        setInterval(fetchWeather, 30 * 60 * 1000);
       }
 
       init();
